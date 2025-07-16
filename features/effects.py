@@ -11,15 +11,23 @@ FPS = 30
 N_FRAMES = 1
 
 def load_midas_model(
-    model_type: str = "MiDaS_small", local_dir: str | None = "models/midas"
+    model_type: str = "MiDaS_small",
+    local_dir: str | None = "models/midas",
+    weights_path: str | None = None,
 ):
-    """Load the MiDaS depth estimation model with optional offline fallback.
+    """Load the MiDaS depth estimation model without any online downloads.
 
     Parameters
     ----------
     model_type:
         The MiDaS model variant to load. Defaults to ``"MiDaS_small"`` which
         provides a reasonable trade off between speed and quality.
+    local_dir:
+        Path to a local clone of the MiDaS repository containing ``hubconf.py``.
+    weights_path:
+        Optional path to the pretrained weight file. When provided the model is
+        instantiated without contacting the internet and the weights are loaded
+        from this path.
 
     Returns
     -------
@@ -27,36 +35,37 @@ def load_midas_model(
         ``(midas, transform, device)`` ready to be used with
         :func:`generate_depth_map`.
     """
+
     import torch
     import os
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    try:
-        midas = torch.hub.load(
-            "intel-isl/MiDaS",
-            model_type,
-            trust_repo=True,
-        )
-    except Exception:
-        if not local_dir:
-            raise
-        repo = os.path.expanduser(local_dir)
-        midas = torch.hub.load(repo, model_type, source="local")
+    if not local_dir:
+        raise ValueError("local_dir must be provided for offline loading")
+
+    repo = os.path.expanduser(local_dir)
+    if not os.path.isdir(repo):
+        raise FileNotFoundError(f"MiDaS repository not found at {repo}")
+
+    # Load the model architecture from the local repo. If a weight file was
+    # supplied we disable the internal download mechanism by setting
+    # ``pretrained=False`` and load the state dict ourselves.
+    midas = torch.hub.load(
+        repo,
+        model_type,
+        pretrained=False if weights_path else True,
+        source="local",
+    )
+
+    if weights_path:
+        state_dict = torch.load(os.path.expanduser(weights_path), map_location=device)
+        midas.load_state_dict(state_dict)
 
     midas.to(device)
     midas.eval()
 
-    try:
-        transforms = torch.hub.load(
-            "intel-isl/MiDaS",
-            "transforms",
-            trust_repo=True,
-        )
-    except Exception:
-        if not local_dir:
-            raise
-        transforms = torch.hub.load(repo, "transforms", source="local")
+    transforms = torch.hub.load(repo, "transforms", source="local")
 
     if model_type.startswith("DPT"):
         transform = transforms.dpt_transform
