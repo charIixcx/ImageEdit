@@ -11,18 +11,73 @@ FPS = 30
 N_FRAMES = 1
 
 
-def load_midas_model():
-    """Stub for loading MiDaS model."""
-    return None, None, "cpu"
+def load_midas_model(model_type: str = "MiDaS_small"):
+    """Load the MiDaS depth estimation model.
+
+    Parameters
+    ----------
+    model_type:
+        The MiDaS model variant to load. Defaults to ``"MiDaS_small"`` which
+        provides a reasonable trade off between speed and quality.
+
+    Returns
+    -------
+    tuple
+        ``(midas, transform, device)`` ready to be used with
+        :func:`generate_depth_map`.
+    """
+    import torch
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    midas = torch.hub.load(
+        "intel-isl/MiDaS",
+        model_type,
+        trust_repo=True,
+    )
+    midas.to(device)
+    midas.eval()
+
+    transforms = torch.hub.load(
+        "intel-isl/MiDaS",
+        "transforms",
+        trust_repo=True,
+    )
+    if model_type.startswith("DPT"):
+        transform = transforms.dpt_transform
+    else:
+        transform = transforms.small_transform
+
+    return midas, transform, device
 
 
 def generate_depth_map(photo_path: str, midas, transform, device):
-    """Generate a fake depth map using image luminance."""
-    image = cv2.imread(photo_path, cv2.IMREAD_GRAYSCALE)
-    if image is None:
+    """Generate a depth map for ``photo_path`` using MiDaS."""
+
+    import torch
+
+    bgr = cv2.imread(photo_path)
+    if bgr is None:
         raise FileNotFoundError(photo_path)
-    normalized = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX)
-    return normalized.astype(np.float32) / 255.0
+
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    input_batch = transform(rgb).to(device)
+
+    with torch.no_grad():
+        prediction = midas(input_batch.unsqueeze(0))
+        prediction = torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size=rgb.shape[:2],
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze()
+
+    depth = prediction.cpu().numpy().astype(np.float32)
+    depth = depth - depth.min()
+    if depth.max() > 0:
+        depth /= depth.max()
+
+    return depth
 
 
 def create_pink_halftone_texture(size: Tuple[int, int]):
