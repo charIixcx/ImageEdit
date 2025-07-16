@@ -10,9 +10,10 @@ FONT_PATHS = {}
 FPS = 30
 N_FRAMES = 1
 
-
-def load_midas_model(model_type: str = "MiDaS_small"):
-    """Load the MiDaS depth estimation model.
+def load_midas_model(
+    model_type: str = "MiDaS_small", local_dir: str | None = "models/midas"
+):
+    """Load the MiDaS depth estimation model with optional offline fallback.
 
     Parameters
     ----------
@@ -27,22 +28,36 @@ def load_midas_model(model_type: str = "MiDaS_small"):
         :func:`generate_depth_map`.
     """
     import torch
+    import os
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    midas = torch.hub.load(
-        "intel-isl/MiDaS",
-        model_type,
-        trust_repo=True,
-    )
+    try:
+        midas = torch.hub.load(
+            "intel-isl/MiDaS",
+            model_type,
+            trust_repo=True,
+        )
+    except Exception:
+        if not local_dir:
+            raise
+        repo = os.path.expanduser(local_dir)
+        midas = torch.hub.load(repo, model_type, source="local")
+
     midas.to(device)
     midas.eval()
 
-    transforms = torch.hub.load(
-        "intel-isl/MiDaS",
-        "transforms",
-        trust_repo=True,
-    )
+    try:
+        transforms = torch.hub.load(
+            "intel-isl/MiDaS",
+            "transforms",
+            trust_repo=True,
+        )
+    except Exception:
+        if not local_dir:
+            raise
+        transforms = torch.hub.load(repo, "transforms", source="local")
+
     if model_type.startswith("DPT"):
         transform = transforms.dpt_transform
     else:

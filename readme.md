@@ -3,6 +3,9 @@
 This project provides a minimal command line interface for experimenting with
 image effects using OpenCV and PyQt6. Depth maps are generated using the
 [MiDaS](https://github.com/isl-org/MiDaS) model which produces more accurate
+results than the previous luminance based placeholder. If the loader cannot
+download the model it falls back to a local copy located in ``models/midas``.
+Clone the MiDaS repository into this folder if you want offline support.
 results than the previous luminance based placeholder.
 
 ## Running
