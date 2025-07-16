@@ -1,25 +1,17 @@
-import os
+"""Terminal interface for previewing and applying image effects."""
 import cv2
-import torch
 import numpy as np
 import argparse
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-import subprocess
 from typing import Tuple, Dict
 from PyQt6.QtCore import Qt
 from PyQt6 import QtWidgets, QtGui
 from features.effects import (
     load_midas_model,
     generate_depth_map,
-    create_pink_halftone_texture,
-    make_collage_word_strip,
     prepare_displacement,
     apply_bokeh_effect,
     apply_particles_effect,
     PRESETS,
-    TILE_SIZE,
-    FONT_PATHS,
-    FPS,
     N_FRAMES,
 )
 
@@ -164,12 +156,32 @@ def numpy_to_qpixmap(np_array: np.ndarray) -> QtGui.QPixmap:
         
     return QtGui.QPixmap.fromImage(qimage)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run text displacement animation without GUI.")
-    parser.add_argument("--photo", required=True, help="Path to the input photo.")
-    parser.add_argument("--gallery", action="store_true", help="Open a gallery to view previews of all effects.")
-    args = parser.parse_args()
 
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Preview or apply simple image effects"
+    )
+    parser.add_argument("--photo", required=True, help="Path to the input photo")
+    parser.add_argument(
+        "--gallery",
+        action="store_true",
+        help="Open a gallery to view previews of all effects",
+    )
+    parser.add_argument(
+        "--effect",
+        choices=["bokeh", "particles", "displacement", "distortion"],
+        help="Effect to apply and save",
+    )
+    parser.add_argument(
+        "--output",
+        help="Output path for the processed image when using --effect",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
     print("Loading MiDaS model...")
     midas, transform, device = load_midas_model()
 
@@ -178,5 +190,16 @@ if __name__ == "__main__":
 
     if args.gallery:
         display_gallery(args.photo, depth_arr)
+        return
+
+    if args.effect:
+        result = generate_effect_preview(args.photo, depth_arr, args.effect)
+        output_path = args.output or f"{args.effect}_output.png"
+        cv2.imwrite(output_path, result)
+        print(f"Saved {args.effect} result to {output_path}")
     else:
-        print("Please specify an action (e.g., --gallery).")
+        print("No action specified. Use --gallery or --effect.")
+
+
+if __name__ == "__main__":
+    main()
