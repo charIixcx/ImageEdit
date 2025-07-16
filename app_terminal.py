@@ -1,4 +1,5 @@
 """Terminal interface for previewing and applying image effects."""
+
 import cv2
 import numpy as np
 import argparse
@@ -11,11 +12,16 @@ from features.effects import (
     prepare_displacement,
     apply_bokeh_effect,
     apply_particles_effect,
+    apply_wave_effect,
+    apply_swirl_effect,
     PRESETS,
     N_FRAMES,
 )
 
-def generate_effect_preview(photo_path: str, depth_arr: np.ndarray, effect_name: str) -> np.ndarray:
+
+def generate_effect_preview(
+    photo_path: str, depth_arr: np.ndarray, effect_name: str
+) -> np.ndarray:
     """
     Generates a preview of a specific effect and returns it as a NumPy array.
     Args:
@@ -33,30 +39,53 @@ def generate_effect_preview(photo_path: str, depth_arr: np.ndarray, effect_name:
     if effect_name == "bokeh":
         img = apply_bokeh_effect(photo_bgr, depth_arr, focus_depth=0.5, strength=0.5)
     elif effect_name == "particles":
-        img = apply_particles_effect(photo_bgr, depth_arr, frame_idx=0, total_frames=N_FRAMES, density=0.0005, size=2, speed=0.02)
+        img = apply_particles_effect(
+            photo_bgr,
+            depth_arr,
+            frame_idx=0,
+            total_frames=N_FRAMES,
+            density=0.0005,
+            size=2,
+            speed=0.02,
+        )
     elif effect_name == "displacement":
         dx, dy = prepare_displacement(depth_arr, PRESETS["fullwrap"])
-        # Normalize displacement maps
         dx = np.clip(dx, 0, photo_bgr.shape[1] - 1)
         dy = np.clip(dy, 0, photo_bgr.shape[0] - 1)
-        img = cv2.remap(photo_bgr, dy.astype(np.float32), dx.astype(np.float32), interpolation=cv2.INTER_LINEAR)
+        img = cv2.remap(
+            photo_bgr,
+            dy.astype(np.float32),
+            dx.astype(np.float32),
+            interpolation=cv2.INTER_LINEAR,
+        )
     elif effect_name == "distortion":
         img = apply_distortion_effect(photo_bgr, depth_arr, PRESETS["fullwrap"])
+    elif effect_name == "wave":
+        img = apply_wave_effect(photo_bgr)
+    elif effect_name == "swirl":
+        img = apply_swirl_effect(photo_bgr)
     else:
         raise ValueError(f"Unknown effect: {effect_name}")
 
     # Ensure output is valid uint8 and within [0,255]
     if img.dtype != np.uint8:
-        print(f"Converting output to uint8 for {effect_name}, original dtype was {img.dtype}")
+        print(
+            f"Converting output to uint8 for {effect_name}, original dtype was {img.dtype}"
+        )
         img = np.clip(img, 0, 255).astype(np.uint8)
     else:
         # Sometimes remap returns float even if input is uint8
         if np.issubdtype(img.dtype, np.floating):
-            print(f"Warning: Output for {effect_name} is float, clipping and converting to uint8")
+            print(
+                f"Warning: Output for {effect_name} is float, clipping and converting to uint8"
+            )
             img = np.clip(img, 0, 255).astype(np.uint8)
     return img
 
-def apply_distortion_effect(photo_bgr: np.ndarray, depth_arr: np.ndarray, preset: Dict[str, float]) -> np.ndarray:
+
+def apply_distortion_effect(
+    photo_bgr: np.ndarray, depth_arr: np.ndarray, preset: Dict[str, float]
+) -> np.ndarray:
     """
     Applies a distortion effect to an image using a depth map and displacement maps.
     Args:
@@ -83,7 +112,7 @@ def apply_distortion_effect(photo_bgr: np.ndarray, depth_arr: np.ndarray, preset
         dy.astype(np.float32),
         dx.astype(np.float32),
         interpolation=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_REFLECT
+        borderMode=cv2.BORDER_REFLECT,
     )
 
     # Ensure result is uint8 and values are in [0,255]
@@ -91,6 +120,7 @@ def apply_distortion_effect(photo_bgr: np.ndarray, depth_arr: np.ndarray, preset
         print("Converting distortion result to uint8")
         distorted_image = np.clip(distorted_image, 0, 255).astype(np.uint8)
     return distorted_image
+
 
 def display_gallery(photo_path: str, depth_arr: np.ndarray):
     """
@@ -107,7 +137,7 @@ def display_gallery(photo_path: str, depth_arr: np.ndarray):
     layout = QtWidgets.QGridLayout(gallery_window)
 
     # Generate previews for all effects
-    effects = ["bokeh", "particles", "displacement", "distortion"]
+    effects = ["bokeh", "particles", "displacement", "distortion", "wave", "swirl"]
     for i, effect_name in enumerate(effects):
         preview = generate_effect_preview(photo_path, depth_arr, effect_name)
         preview_pixmap = numpy_to_qpixmap(preview)
@@ -134,6 +164,7 @@ def display_gallery(photo_path: str, depth_arr: np.ndarray):
     gallery_window.show()
     app.exec()
 
+
 def numpy_to_qpixmap(np_array: np.ndarray) -> QtGui.QPixmap:
     """
     Converts a NumPy array (representing an image) to a QPixmap.
@@ -141,19 +172,31 @@ def numpy_to_qpixmap(np_array: np.ndarray) -> QtGui.QPixmap:
     """
     if np_array.ndim == 2:
         np_array = cv2.cvtColor(np_array, cv2.COLOR_GRAY2RGB)
-    
+
     height, width, channel = np_array.shape
     bytes_per_line = channel * width
-    
+
     if channel == 3:  # BGR to RGB
         rgb_image = cv2.cvtColor(np_array, cv2.COLOR_BGR2RGB)
-        qimage = QtGui.QImage(rgb_image.data, width, height, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+        qimage = QtGui.QImage(
+            rgb_image.data,
+            width,
+            height,
+            bytes_per_line,
+            QtGui.QImage.Format.Format_RGB888,
+        )
     elif channel == 4:  # BGRA to RGBA
         rgba_image = cv2.cvtColor(np_array, cv2.COLOR_BGRA2RGBA)
-        qimage = QtGui.QImage(rgba_image.data, width, height, bytes_per_line, QtGui.QImage.Format.Format_RGBA8888)
+        qimage = QtGui.QImage(
+            rgba_image.data,
+            width,
+            height,
+            bytes_per_line,
+            QtGui.QImage.Format.Format_RGBA8888,
+        )
     else:
         raise ValueError(f"Unsupported channel count: {channel}. Expected 2, 3, or 4.")
-        
+
     return QtGui.QPixmap.fromImage(qimage)
 
 
@@ -170,7 +213,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--effect",
-        choices=["bokeh", "particles", "displacement", "distortion"],
+        choices=["bokeh", "particles", "displacement", "distortion", "wave", "swirl"],
         help="Effect to apply and save",
     )
     parser.add_argument(
