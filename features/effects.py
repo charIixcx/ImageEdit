@@ -10,7 +10,6 @@ FONT_PATHS = {}
 FPS = 30
 N_FRAMES = 1
 
-
 def load_midas_model(
     model_type: str = "MiDaS_small", local_dir: str | None = "models/midas"
 ):

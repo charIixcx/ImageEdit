@@ -6,6 +6,7 @@ image effects using OpenCV and PyQt6. Depth maps are generated using the
 results than the previous luminance based placeholder. If the loader cannot
 download the model it falls back to a local copy located in ``models/midas``.
 Clone the MiDaS repository into this folder if you want offline support.
+results than the previous luminance based placeholder.
 
 ## Running
 
