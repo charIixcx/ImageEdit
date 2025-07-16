@@ -1,8 +1,9 @@
 # ImageEdit
 
 This project provides a minimal command line interface for experimenting with
-image effects using OpenCV and PyQt6. Depth maps are generated from image
-luminance and can be used to drive simple transformations.
+image effects using OpenCV and PyQt6. Depth maps are generated using the
+[MiDaS](https://github.com/isl-org/MiDaS) model which produces more accurate
+results than the previous luminance based placeholder.
 
 ## Running
 
